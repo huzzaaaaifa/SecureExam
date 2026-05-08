@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/types.ts","./src/utils.ts","./src/components/adminpanel.tsx","./src/components/instructorpanel.tsx","./src/components/loginform.tsx","./src/components/statusbanner.tsx","./src/components/studentpanel.tsx","./src/components/topbar.tsx","./vite.config.ts"],"version":"5.6.3"}
