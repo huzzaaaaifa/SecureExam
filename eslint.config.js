@@ -7,7 +7,7 @@ const recommended = security.configs.recommended;
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
-  { ignores: ['**/node_modules/**', 'public/**', 'frontend/**'] },
+  { ignores: ['**/node_modules/**', 'public/**', 'client/**'] },
   {
     ...recommended,
     files: ['src/**/*.js'],
