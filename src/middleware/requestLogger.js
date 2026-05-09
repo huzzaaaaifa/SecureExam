@@ -35,7 +35,6 @@ export function requestLogger(req, res, next) {
     const line = `${JSON.stringify(logRecord)}\n`;
     fs.appendFile(LOG_FILE_PATH, line, (error) => {
       if (error) {
-        // eslint-disable-next-line no-console
         console.error('Failed to write request log', error.message);
       }
     });

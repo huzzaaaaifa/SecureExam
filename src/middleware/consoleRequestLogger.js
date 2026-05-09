@@ -23,7 +23,6 @@ export function consoleRequestLogger(req, res, next) {
   res.on('finish', () => {
     const durationMs = Date.now() - startedAt;
     const line = `[http] ${sanitize(req.method)} ${sanitize(req.originalUrl)} → ${res.statusCode} ${durationMs}ms ip=${sanitize(req.ip)}`;
-    // eslint-disable-next-line no-console
     console.log(line);
   });
   next();

@@ -11,7 +11,6 @@ export function errorHandler(err, req, res, next) {
   const safeMessage = status >= 500 ? 'Internal server error' : (err?.message ?? 'Bad request');
   if (status >= 500) {
     // Avoid leaking stack traces to clients; rely on logs/audit.
-    // eslint-disable-next-line no-console
     console.error(err);
   }
   res.status(status).json({ error: safeMessage });

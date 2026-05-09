@@ -122,7 +122,6 @@ app.use(notFound);
 app.use(errorHandler);
 
 app.listen(config.port, () => {
-  // eslint-disable-next-line no-console
   console.log(`SecureExam app listening on http://localhost:${config.port}`);
 });
 
