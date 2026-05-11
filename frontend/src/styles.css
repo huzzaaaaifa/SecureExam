@@ -142,7 +142,7 @@ body.is-guest .shell__inner {
 }
 
 body.is-authed .shell__inner {
-  max-width: 720px;
+  max-width: 1400px;
 }
 
 .card {
@@ -588,6 +588,16 @@ input[readonly] {
   font-size: 0.82rem;
 }
 
+.btn--danger {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: #991b1b;
+}
+
 .topbar__mfa {
   position: relative;
 }
@@ -661,15 +671,35 @@ input[readonly] {
   line-height: 1.4;
 }
 
-.submission-pre {
-  margin: 8px 0 0;
-  padding: 10px;
-  font-size: 0.78rem;
-  line-height: 1.4;
-  overflow-x: auto;
+.submission-answers {
+  margin: 10px 0 0;
+  display: grid;
+  gap: 6px;
+}
+
+.submission-answers__row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 12px;
   background: var(--surface-muted);
   border-radius: 8px;
   border: 1px solid var(--border);
+}
+
+.submission-answers__label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  flex-shrink: 0;
+  min-width: 3rem;
+}
+
+.submission-answers__value {
+  font-size: 0.88rem;
+  color: var(--text);
+  word-break: break-word;
 }
 
 /* Simulated push-style OTP toast during MFA login (development). */

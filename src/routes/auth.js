@@ -39,8 +39,13 @@ import {
 
 export const authRouter = express.Router();
 
+const ALLOWED_EMAIL_DOMAIN = '@demo.local';
+
 const registerSchema = z.object({
-  email: z.string().email().max(254),
+  email: z.string().email().max(254).refine(
+    (e) => e.toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN),
+    { message: `Only ${ALLOWED_EMAIL_DOMAIN} addresses are allowed` }
+  ),
   password: z.string().min(10).max(128)
 });
 

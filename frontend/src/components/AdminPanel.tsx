@@ -35,7 +35,7 @@ function mfaOn(u: AdminUser): boolean {
 }
 
 export default function AdminPanel() {
-  const { showStatus } = useApp();
+  const { showStatus, currentUserId } = useApp();
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [usersError, setUsersError] = useState('');
   const [usersLoading, setUsersLoading] = useState(false);
@@ -160,6 +160,20 @@ export default function AdminPanel() {
       await loadUsers();
     } catch (err) {
       showStatus(err instanceof Error ? err.message : 'Clear failed', 'error');
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  async function deleteUser(user: AdminUser) {
+    if (!confirm(`Permanently delete ${user.email}? This cannot be undone.`)) return;
+    setRowBusy(user.id);
+    try {
+      await api.deleteUser(user.id);
+      showStatus(`Deleted ${user.email}.`, 'success');
+      await loadUsers();
+    } catch (err) {
+      showStatus(err instanceof Error ? err.message : 'Delete failed', 'error');
     } finally {
       setRowBusy(null);
     }
@@ -337,6 +351,16 @@ export default function AdminPanel() {
                             >
                               Clear MFA
                             </button>
+                            {u.id !== currentUserId && (
+                              <button
+                                type="button"
+                                className="btn btn--compact btn--danger"
+                                disabled={busy}
+                                onClick={() => { void deleteUser(u); }}
+                              >
+                                Delete
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

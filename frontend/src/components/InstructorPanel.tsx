@@ -31,11 +31,12 @@ function draftToPayload(drafts: DraftQuestion[]): ExamQuestionPublic[] {
   });
 }
 
-function formatAnswersJson(raw: string): string {
+function parseAnswers(raw: string): Record<string, string | number | boolean | null> {
   try {
-    return JSON.stringify(JSON.parse(raw), null, 2);
+    const parsed = JSON.parse(raw) as Record<string, string | number | boolean | null>;
+    return (parsed && typeof parsed === 'object') ? parsed : {};
   } catch {
-    return raw;
+    return {};
   }
 }
 
@@ -615,13 +616,30 @@ export default function InstructorPanel() {
             {submissionRows && submissionRows.length > 0 && (
               <>
                 <h4 className="section-label" style={{ marginTop: '20px' }}>Submissions (review)</h4>
-                {submissionRows.map(s => (
-                  <article key={s.id} className="list-item" style={{ marginBottom: '10px' }}>
-                    <div className="list-item__title">{s.email} · #{s.id}</div>
-                    <div className="list-item__meta">{s.submittedAtUtc}</div>
-                    <pre className="submission-pre">{formatAnswersJson(s.answersJson)}</pre>
-                  </article>
-                ))}
+                {submissionRows.map(s => {
+                  const answers = parseAnswers(s.answersJson);
+                  const entries = Object.entries(answers);
+                  return (
+                    <article key={s.id} className="list-item" style={{ marginBottom: '10px' }}>
+                      <div className="list-item__title">{s.email} · #{s.id}</div>
+                      <div className="list-item__meta">{s.submittedAtUtc}</div>
+                      {entries.length > 0 ? (
+                        <div className="submission-answers">
+                          {entries.map(([qId, answer]) => (
+                            <div key={qId} className="submission-answers__row">
+                              <span className="submission-answers__label">{qId}</span>
+                              <span className="submission-answers__value">
+                                {answer === null ? '—' : String(answer) || '(empty)'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="field__hint">No answers submitted.</div>
+                      )}
+                    </article>
+                  );
+                })}
               </>
             )}
           </>

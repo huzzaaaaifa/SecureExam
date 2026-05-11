@@ -13,15 +13,27 @@ import type { AppStatus, Role, StatusVariant } from './types';
 interface AppContextValue {
   showStatus: (message: string, variant?: StatusVariant) => void;
   logout: () => void;
+  currentUserId: number | null;
 }
 
 const AppContext = createContext<AppContextValue>({
   showStatus: () => {},
   logout: () => {},
+  currentUserId: null,
 });
 
 export function useApp(): AppContextValue {
   return useContext(AppContext);
+}
+
+function parseJwtSubject(token: string): number | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const id = Number(payload.sub);
+    return Number.isFinite(id) ? id : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function App() {
@@ -69,7 +81,7 @@ export default function App() {
   }, []);
 
   return (
-    <AppContext.Provider value={{ showStatus, logout }}>
+    <AppContext.Provider value={{ showStatus, logout, currentUserId: parseJwtSubject(accessToken) }}>
       <a className="skip-link" href="#main">Skip to content</a>
       {loggedIn && <TopBar role={role as Role} />}
       <main id="main" className="shell">

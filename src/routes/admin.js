@@ -22,8 +22,13 @@ const updateUserSchema = z
     message: 'At least one of role, isActive is required'
   });
 
+const ALLOWED_EMAIL_DOMAIN = '@demo.local';
+
 const createUserSchema = z.object({
-  email: z.string().email().max(254),
+  email: z.string().email().max(254).refine(
+    (e) => e.toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN),
+    { message: `Only ${ALLOWED_EMAIL_DOMAIN} addresses are allowed` }
+  ),
   password: z.string().min(10).max(128),
   role: z.enum(['student', 'instructor', 'admin'])
 });
@@ -288,3 +293,75 @@ adminRouter.patch(
     res.json({ ok: true, id: targetId, role: newRole, isActive: newActive });
   }
 );
+
+// Permanently deletes a user and all associated data (cascading FKs handle related rows).
+adminRouter.delete('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
+  const parseId = userIdParamSchema.safeParse(req.params.id);
+  if (!parseId.success) {
+    res.status(400).json({ error: 'Invalid request' });
+    return;
+  }
+  const targetId = parseId.data;
+  const target = db.prepare('SELECT id, email, role, is_active AS isActive FROM users WHERE id = ?').get(targetId);
+  if (!target) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+
+  if (req.user.id === targetId) {
+    res.status(400).json({ error: 'You cannot delete your own account.' });
+    return;
+  }
+
+  if (target.role === 'admin' && target.isActive) {
+    const { count } = db
+      .prepare(`SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = 1`)
+      .get();
+    if (count < 2) {
+      res.status(400).json({ error: 'Cannot delete the last active administrator.' });
+      return;
+    }
+  }
+
+  const deleteTransaction = db.transaction(() => {
+    clearPendingLoginOtp(targetId);
+    db.prepare('DELETE FROM user_mfa WHERE user_id = ?').run(targetId);
+    db.prepare('DELETE FROM password_reset_mfa_pending WHERE user_id = ?').run(targetId);
+    db.prepare('DELETE FROM login_mfa_pending WHERE user_id = ?').run(targetId);
+    db.prepare('DELETE FROM results WHERE student_user_id = ?').run(targetId);
+    db.prepare('DELETE FROM submissions WHERE student_user_id = ?').run(targetId);
+    db.prepare('DELETE FROM exam_assignments WHERE student_user_id = ?').run(targetId);
+    // Remove exams created by this user (cascades to their assignments/submissions/results)
+    const createdExams = db.prepare('SELECT id FROM exams WHERE created_by_user_id = ?').all(targetId);
+    for (const exam of createdExams) {
+      db.prepare('DELETE FROM results WHERE exam_id = ?').run(exam.id);
+      db.prepare('DELETE FROM submissions WHERE exam_id = ?').run(exam.id);
+      db.prepare('DELETE FROM exam_assignments WHERE exam_id = ?').run(exam.id);
+    }
+    db.prepare('DELETE FROM exams WHERE created_by_user_id = ?').run(targetId);
+    // Nullify audit log references (preserves history but removes FK constraint)
+    db.prepare('UPDATE audit_log SET actor_user_id = NULL WHERE actor_user_id = ?').run(targetId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
+  });
+
+  try {
+    deleteTransaction();
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to delete user.' });
+    return;
+  }
+
+  auditLog({
+    actorUserId: req.user.id,
+    actorRole: req.user.role,
+    action: 'admin_delete_user',
+    resourceType: 'user',
+    resourceId: String(targetId),
+    outcome: 'allow',
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+    details: { email: target.email, role: target.role }
+  });
+
+  res.json({ ok: true });
+});

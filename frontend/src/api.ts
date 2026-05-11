@@ -322,6 +322,12 @@ export const api = {
       pathSuffix: `/${userId}/mfa-clear`,
     }),
 
+  deleteUser: (userId: number) =>
+    request<{ ok: boolean }>('adminUsers', {
+      method: 'DELETE',
+      pathSuffix: `/${userId}`,
+    }),
+
   getSecurityAlerts: () =>
     request<{ alerts: SecurityAlert[] }>('securityAlerts', { method: 'GET' }),
 
