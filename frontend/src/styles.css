@@ -752,3 +752,82 @@ input[readonly] {
 .student-assign-row input {
   margin-top: 3px;
 }
+
+/* ─── Question Builder ─── */
+.question-builder {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.question-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  display: grid;
+  gap: 12px;
+}
+
+.question-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.question-card__num {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--primary);
+}
+
+.question-card__remove {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.question-card__remove:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.question-card__mcq {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.question-card__option-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.question-card__option-row input[type="radio"] {
+  width: auto;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.question-card__option-row input[type="text"] {
+  flex: 1;
+}
+
+.question-card__remove-opt {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  padding: 4px 8px;
+  line-height: 1;
+  font-size: 1rem;
+}
+
+.question-card__remove-opt:hover:not(:disabled) {
+  background: #fef2f2;
+}

@@ -1,4 +1,4 @@
-// File purpose: Instructor dashboard — exams with JSON questions, assign, grade, publish, archive.
+// File purpose: Instructor dashboard — exams with visual question builder, assign, grade, publish, archive.
 // Security checks: dates validated client-side; server enforces ownership and RBAC.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -7,10 +7,29 @@ import { useApp } from '../App';
 import { toUtcIso } from '../utils';
 import type { Exam, ExamQuestionPublic, ExamResultRow, ExamSubmission, Student } from '../types';
 
-const DEFAULT_QUESTIONS_JSON = `[
-  {"id":"q1","type":"text","points":5,"prompt":"Question 1"},
-  {"id":"q2","type":"text","points":5,"prompt":"Question 2"}
-]`;
+interface DraftQuestion {
+  id: string;
+  type: 'text' | 'mcq';
+  prompt: string;
+  points: number;
+  options: string[];
+  correctIndex: number;
+}
+
+function emptyQuestion(index: number): DraftQuestion {
+  return { id: `q${index}`, type: 'text', prompt: '', points: 5, options: ['', ''], correctIndex: 0 };
+}
+
+function draftToPayload(drafts: DraftQuestion[]): ExamQuestionPublic[] {
+  return drafts.map(d => {
+    const base: ExamQuestionPublic = { id: d.id, type: d.type, prompt: d.prompt, points: d.points };
+    if (d.type === 'mcq') {
+      base.options = d.options;
+      base.correctIndex = d.correctIndex;
+    }
+    return base;
+  });
+}
 
 function formatAnswersJson(raw: string): string {
   try {
@@ -36,7 +55,7 @@ export default function InstructorPanel() {
   const [title, setTitle] = useState('');
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
-  const [questionsJson, setQuestionsJson] = useState(DEFAULT_QUESTIONS_JSON);
+  const [questions, setQuestions] = useState<DraftQuestion[]>([emptyQuestion(1)]);
   const [creating, setCreating] = useState(false);
 
   const [exams, setExams] = useState<Exam[] | null>(null);
@@ -86,31 +105,76 @@ export default function InstructorPanel() {
     void loadStudents();
   }, [loadExams, loadStudents]);
 
+  function updateQuestion(idx: number, patch: Partial<DraftQuestion>) {
+    setQuestions(prev => prev.map((q, i) => (i === idx ? { ...q, ...patch } : q)));
+  }
+
+  function addQuestion() {
+    setQuestions(prev => [...prev, emptyQuestion(prev.length + 1)]);
+  }
+
+  function removeQuestion(idx: number) {
+    setQuestions(prev => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((_, i) => i !== idx).map((q, i) => ({ ...q, id: `q${i + 1}` }));
+    });
+  }
+
+  function updateOption(qIdx: number, optIdx: number, value: string) {
+    setQuestions(prev => prev.map((q, i) => {
+      if (i !== qIdx) return q;
+      const opts = [...q.options];
+      opts[optIdx] = value;
+      return { ...q, options: opts };
+    }));
+  }
+
+  function addOption(qIdx: number) {
+    setQuestions(prev => prev.map((q, i) => (i === qIdx ? { ...q, options: [...q.options, ''] } : q)));
+  }
+
+  function removeOption(qIdx: number, optIdx: number) {
+    setQuestions(prev => prev.map((q, i) => {
+      if (i !== qIdx) return q;
+      const opts = q.options.filter((_, oi) => oi !== optIdx);
+      const corrected = q.correctIndex >= opts.length ? 0 : q.correctIndex;
+      return { ...q, options: opts.length < 2 ? [...opts, ''] : opts, correctIndex: corrected };
+    }));
+  }
+
   async function handleCreateExam(e: React.FormEvent) {
     e.preventDefault();
     let startsAtUtc: string;
     let endsAtUtc: string;
-    let questions: ExamQuestionPublic[];
     try {
       startsAtUtc = toUtcIso(startsAt);
       endsAtUtc = toUtcIso(endsAt);
-      questions = JSON.parse(questionsJson) as ExamQuestionPublic[];
-      if (!Array.isArray(questions) || questions.length === 0) {
-        showStatus('Questions must be a non-empty JSON array.', 'error');
+    } catch {
+      showStatus('Invalid dates.', 'error');
+      return;
+    }
+    for (let i = 0; i < questions.length; i++) {
+      if (!questions[i].prompt.trim()) {
+        showStatus(`Question ${i + 1} is empty. Please fill in all question prompts.`, 'error');
         return;
       }
-    } catch {
-      showStatus('Invalid dates or questions JSON.', 'error');
-      return;
+      if (questions[i].type === 'mcq') {
+        const hasEmpty = questions[i].options.some(o => !o.trim());
+        if (hasEmpty) {
+          showStatus(`Question ${i + 1} has empty options. Fill all MCQ options.`, 'error');
+          return;
+        }
+      }
     }
     setCreating(true);
     try {
-      const data = await api.createExam(title, startsAtUtc, endsAtUtc, questions);
+      const payload = draftToPayload(questions);
+      const data = await api.createExam(title, startsAtUtc, endsAtUtc, payload);
       showStatus(`Exam created (ID ${data.id}).`, 'success');
       setTitle('');
       setStartsAt('');
       setEndsAt('');
-      setQuestionsJson(DEFAULT_QUESTIONS_JSON);
+      setQuestions([emptyQuestion(1)]);
       void loadExams();
     } catch (err) {
       showStatus(err instanceof Error ? err.message : 'Create failed', 'error');
@@ -250,7 +314,7 @@ export default function InstructorPanel() {
     <section className="card" aria-labelledby="instructor-heading">
       <div className="card__head">
         <h2 id="instructor-heading" className="card__title">Instructor</h2>
-        <p className="card__lede">Author questions (JSON), assign, review submissions, adjust scores, publish, archive.</p>
+        <p className="card__lede">Create exams with questions, assign to students, review submissions, adjust scores, and publish.</p>
       </div>
 
       <form className="form-stack" onSubmit={(e) => { void handleCreateExam(e); }}>
@@ -289,20 +353,120 @@ export default function InstructorPanel() {
             />
           </div>
         </div>
-        <div className="field">
-          <label htmlFor="questionsJson">Questions (JSON)</label>
-          <textarea
-            id="questionsJson"
-            rows={8}
-            className="mono-textarea"
-            value={questionsJson}
-            onChange={(e) => { setQuestionsJson(e.target.value); }}
-            spellCheck={false}
-          />
-          <span className="field__hint">
-            Array of objects: text (id, type, points, prompt) or mcq (+ options[], correctIndex).
+
+        <fieldset className="question-builder">
+          <legend className="section-label">Questions</legend>
+          <span className="field__hint" style={{ marginBottom: 12, display: 'block' }}>
+            At least 1 question is required. Choose text (open-ended) or MCQ type for each.
           </span>
-        </div>
+
+          {questions.map((q, qIdx) => (
+            <div key={q.id} className="question-card">
+              <div className="question-card__header">
+                <span className="question-card__num">Q{qIdx + 1}</span>
+                {questions.length > 1 && (
+                  <button
+                    type="button"
+                    className="btn btn--sm question-card__remove"
+                    onClick={() => { removeQuestion(qIdx); }}
+                    aria-label={`Remove question ${qIdx + 1}`}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+
+              <div className="field">
+                <label htmlFor={`q-prompt-${qIdx}`}>Prompt</label>
+                <textarea
+                  id={`q-prompt-${qIdx}`}
+                  rows={2}
+                  required
+                  placeholder="Write your question here…"
+                  value={q.prompt}
+                  onChange={(e) => { updateQuestion(qIdx, { prompt: e.target.value }); }}
+                />
+              </div>
+
+              <div className="field-row">
+                <div className="field" style={{ flex: '0 0 140px' }}>
+                  <label htmlFor={`q-type-${qIdx}`}>Type</label>
+                  <select
+                    id={`q-type-${qIdx}`}
+                    value={q.type}
+                    onChange={(e) => { updateQuestion(qIdx, { type: e.target.value as 'text' | 'mcq' }); }}
+                  >
+                    <option value="text">Text</option>
+                    <option value="mcq">MCQ</option>
+                  </select>
+                </div>
+                <div className="field" style={{ flex: '0 0 100px' }}>
+                  <label htmlFor={`q-points-${qIdx}`}>Points</label>
+                  <input
+                    id={`q-points-${qIdx}`}
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={q.points}
+                    onChange={(e) => { updateQuestion(qIdx, { points: Number(e.target.value) }); }}
+                  />
+                </div>
+              </div>
+
+              {q.type === 'mcq' && (
+                <div className="question-card__mcq">
+                  <label className="section-label" style={{ marginBottom: 6 }}>Options</label>
+                  {q.options.map((opt, optIdx) => (
+                    <div key={optIdx} className="question-card__option-row">
+                      <input
+                        type="radio"
+                        name={`correct-${qIdx}`}
+                        checked={q.correctIndex === optIdx}
+                        onChange={() => { updateQuestion(qIdx, { correctIndex: optIdx }); }}
+                        title="Mark as correct answer"
+                      />
+                      <input
+                        type="text"
+                        placeholder={`Option ${optIdx + 1}`}
+                        value={opt}
+                        onChange={(e) => { updateOption(qIdx, optIdx, e.target.value); }}
+                        required
+                      />
+                      {q.options.length > 2 && (
+                        <button
+                          type="button"
+                          className="btn btn--sm question-card__remove-opt"
+                          onClick={() => { removeOption(qIdx, optIdx); }}
+                          aria-label={`Remove option ${optIdx + 1}`}
+                        >
+                          &times;
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--sm"
+                    style={{ marginTop: 6 }}
+                    onClick={() => { addOption(qIdx); }}
+                  >
+                    + Add option
+                  </button>
+                  <span className="field__hint">Select the radio button next to the correct answer.</span>
+                </div>
+              )}
+            </div>
+          ))}
+
+          <button
+            type="button"
+            className="btn btn--secondary"
+            onClick={addQuestion}
+          >
+            + Add question
+          </button>
+        </fieldset>
+
         <button className="btn btn--primary" type="submit" disabled={creating} aria-busy={creating}>
           {creating ? 'Creating…' : 'Create exam'}
         </button>
